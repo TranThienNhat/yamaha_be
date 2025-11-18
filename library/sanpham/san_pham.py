@@ -35,7 +35,7 @@ def lay_theo_id(id):
     
     # Kiểm tra nếu không tìm thấy sản phẩm
     if sp is None:
-        return jsonify({"message": f"Sản phẩm ID {sp} không tồn tại"}), 404
+        return jsonify({"message": f"Sản phẩm ID {id} không tồn tại"}), 404
     
     if sp.get("hinh_anh"):
         sp["hinh_anh_url"] = url_for("san_pham.uploaded_file", filename = sp["hinh_anh"],_external =True)
@@ -149,15 +149,15 @@ def sua_san_pham(ma_san_pham):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 # -----------------------------
-# Xóa sản phẩm
+# Xóa sản phẩm (soft delete)
 @san_pham.route("/sanpham/<int:ma_san_pham>", methods=["DELETE"])
 def xoa_san_pham(ma_san_pham):
     try:
         ket_qua = sp_repo.xoa_san_pham(ma_san_pham)
         if ket_qua:
-            return jsonify({"message": "Đã xóa sản phẩm"})
+            return jsonify({"message": "Đã xóa sản phẩm thành công"})
         else:
-            return jsonify({"message": "Không tìm thấy sản phẩm"}), 404
+            return jsonify({"message": "Không thể xóa sản phẩm. Sản phẩm không tồn tại hoặc đã bị xóa trước đó."}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
