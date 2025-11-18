@@ -4,12 +4,12 @@ import pyodbc
 class ProductRepository:
     
     def lay_tat_ca(self):
-        """Lấy tất cả sản phẩm."""
+        """Lấy tất cả sản phẩm (chỉ lấy sản phẩm chưa xóa)."""
         db = get_db()
         if db is None: return None # Trả về None nếu không kết nối được
         
         try:
-            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat FROM SanPham ORDER BY id DESC"
+            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat FROM SanPham WHERE da_xoa = 0 ORDER BY id DESC"
             cursor = db.cursor()
             cursor.execute(lenh)
         
@@ -30,13 +30,13 @@ class ProductRepository:
             cursor.close()
 
     def lay_theo_id(self, ma_san_pham):
-        """Lấy sản phẩm theo ID."""
+        """Lấy sản phẩm theo ID (chỉ lấy sản phẩm chưa xóa)."""
         db = get_db()
         if db is None: return None
 
         try:
             # Dùng placeholder (?) để tránh SQL Injection
-            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh FROM SanPham WHERE id = ?"
+            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh FROM SanPham WHERE id = ? AND da_xoa = 0"
             cursor = db.cursor()
             cursor.execute(lenh, (ma_san_pham,)) 
         
@@ -150,14 +150,31 @@ class ProductRepository:
             cursor.close()
 
     def xoa_san_pham(self, ma_san_pham):
-        """Xóa sản phẩm theo ID"""
+        """Xóa mềm sản phẩm theo ID - Đánh dấu da_xoa = 1"""
         db = get_db()
         if db is None:
             return False
         try:
-            lenh = "DELETE FROM SanPham WHERE id = ?"
             cursor = db.cursor()
-            cursor.execute(lenh, (ma_san_pham ,))
+            
+            # Kiểm tra sản phẩm có tồn tại và chưa bị xóa không
+            cursor.execute(
+                "SELECT da_xoa FROM SanPham WHERE id = ?",
+                (ma_san_pham,)
+            )
+            row = cursor.fetchone()
+            
+            if not row:
+                print(f"Product {ma_san_pham} not found")
+                return False
+            
+            if row[0] == 1:
+                print(f"Product {ma_san_pham} already deleted")
+                return False
+            
+            # Đánh dấu sản phẩm đã xóa (soft delete)
+            lenh = "UPDATE SanPham SET da_xoa = 1 WHERE id = ?"
+            cursor.execute(lenh, (ma_san_pham,))
             db.commit()
             return cursor.rowcount > 0
         except pyodbc.Error as e:
@@ -193,7 +210,7 @@ class ProductRepository:
             cursor.close()
     
     def lay_noi_bat(self, limit=8):
-        """Lấy sản phẩm nổi bật."""
+        """Lấy sản phẩm nổi bật (chỉ lấy sản phẩm chưa xóa)."""
         db = get_db()
         if db is None: return []
         
@@ -202,7 +219,7 @@ class ProductRepository:
             cursor.execute("""
                 SELECT TOP (?) id, ten_san_pham, gia, mo_ta, hinh_anh 
                 FROM SanPham 
-                WHERE noi_bat = 1
+                WHERE noi_bat = 1 AND da_xoa = 0
                 ORDER BY id DESC
             """, (limit,))
             ket_qua = cursor.fetchall()

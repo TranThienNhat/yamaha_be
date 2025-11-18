@@ -64,9 +64,20 @@ BEGIN
         thong_so_ky_thuat NVARCHAR(MAX),
         hinh_anh VARCHAR(255),
         noi_bat BIT DEFAULT 0,
+        da_xoa BIT DEFAULT 0,
         ngay_tao DATETIME DEFAULT GETDATE()
     );
     PRINT N'✅ Bảng SanPham đã được tạo';
+END
+ELSE
+BEGIN
+    -- Thêm cột da_xoa nếu bảng đã tồn tại nhưng chưa có cột này
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SanPham') AND name = 'da_xoa')
+    BEGIN
+        ALTER TABLE SanPham ADD da_xoa BIT DEFAULT 0;
+        UPDATE SanPham SET da_xoa = 0 WHERE da_xoa IS NULL;
+        PRINT N'✅ Đã thêm cột da_xoa vào bảng SanPham';
+    END
 END
 GO
 
@@ -156,7 +167,7 @@ BEGIN
         so_luong INT NOT NULL,
         don_gia DECIMAL(18, 2) NOT NULL,
         FOREIGN KEY (ma_don_hang) REFERENCES DonHang(id) ON DELETE CASCADE,
-        FOREIGN KEY (ma_san_pham) REFERENCES SanPham(id)
+        FOREIGN KEY (ma_san_pham) REFERENCES SanPham(id) ON DELETE NO ACTION
     );
     PRINT N'✅ Bảng ChiTietDonHang đã được tạo';
 END
@@ -201,6 +212,9 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SanPham_NoiBat')
     CREATE INDEX IX_SanPham_NoiBat ON SanPham(noi_bat);
 
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SanPham_DaXoa')
+    CREATE INDEX IX_SanPham_DaXoa ON SanPham(da_xoa);
+
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SanPham_HinhAnh_SanPhamId')
     CREATE INDEX IX_SanPham_HinhAnh_SanPhamId ON SanPham_HinhAnh(san_pham_id, thu_tu);
 
@@ -227,7 +241,7 @@ GO
 IF NOT EXISTS (SELECT * FROM NguoiDung WHERE ten_dang_nhap = 'admin')
 BEGIN
     INSERT INTO NguoiDung (ten_dang_nhap, mat_khau, email, ho_ten, vai_tro) 
-    VALUES ('admin', 'admin123', 'admin@yamaha.vn', N'Quản trị viên', 'admin');
+    VALUES ('admin', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'admin@yamaha.vn', N'Quản trị viên', 'admin');
     PRINT N'✅ Tài khoản admin đã được tạo';
 END
 
@@ -235,7 +249,7 @@ END
 IF NOT EXISTS (SELECT * FROM NguoiDung WHERE ten_dang_nhap = 'user')
 BEGIN
     INSERT INTO NguoiDung (ten_dang_nhap, mat_khau, email, ho_ten, vai_tro) 
-    VALUES ('user', 'user123', 'user@example.com', N'Nguyễn Văn A', 'khach_hang');
+    VALUES ('user', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'user@example.com', N'Nguyễn Văn A', 'khach_hang');
     PRINT N'✅ Tài khoản user mẫu đã được tạo';
 END
 GO
@@ -250,87 +264,4 @@ BEGIN
     (N'Phụ kiện');
     PRINT N'✅ Danh mục mẫu đã được tạo';
 END
-GO
-
--- Thêm sản phẩm mẫu
-IF NOT EXISTS (SELECT * FROM SanPham WHERE ten_san_pham = N'Yamaha Exciter 155')
-BEGIN
-    INSERT INTO SanPham (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, noi_bat) VALUES
-    (N'Yamaha Exciter 155', 52990000, N'Xe côn tay thể thao hàng đầu Việt Nam', N'Động cơ: 155cc, Công suất: 15PS, Mô-men xoắn: 14.2Nm', 1),
-    (N'Yamaha NVX 155', 52990000, N'Xe tay ga thể thao cao cấp', N'Động cơ: 155cc, Công suất: 15.4PS, Mô-men xoắn: 13.8Nm', 1),
-    (N'Yamaha Sirius', 21990000, N'Xe số tiết kiệm nhiên liệu', N'Động cơ: 110cc, Công suất: 7.8PS, Tiêu hao nhiên liệu: 1.5L/100km', 0),
-    (N'Yamaha Grande', 45990000, N'Xe tay ga cao cấp sang trọng', N'Động cơ: 125cc, Công suất: 9.3PS, Hệ thống khởi động thông minh', 1),
-    (N'Yamaha Janus', 32990000, N'Xe tay ga thời trang cho phái đẹp', N'Động cơ: 125cc, Công suất: 9.3PS, Thiết kế nhỏ gọn', 0);
-    PRINT N'✅ Sản phẩm mẫu đã được tạo';
-END
-GO
-
--- Liên kết sản phẩm với danh mục
-IF NOT EXISTS (SELECT * FROM Danhmuc_Sanpham WHERE san_pham_id = 1)
-BEGIN
-    INSERT INTO Danhmuc_Sanpham (san_pham_id, danh_muc_id) VALUES
-    (1, 1), -- Exciter - Xe côn tay
-    (2, 2), -- NVX - Xe tay ga
-    (3, 3), -- Sirius - Xe số
-    (4, 2), -- Grande - Xe tay ga
-    (5, 2); -- Janus - Xe tay ga
-    PRINT N'✅ Liên kết sản phẩm-danh mục đã được tạo';
-END
-GO
-
--- Thêm tin tức mẫu
-IF NOT EXISTS (SELECT * FROM TinTuc WHERE tieu_de LIKE N'%Exciter 155%')
-BEGIN
-    INSERT INTO TinTuc (tieu_de, noi_dung, noi_bat) VALUES
-    (N'Ra mắt Yamaha Exciter 155 VVA 2024', N'<h2>Yamaha Exciter 155 VVA 2024 - Đột phá mới</h2><p>Yamaha Motor Việt Nam chính thức giới thiệu Exciter 155 VVA phiên bản 2024 với nhiều cải tiến vượt trội về thiết kế và công nghệ.</p>', 1),
-    (N'Khuyến mãi tháng 11 - Giảm giá sốc', N'<h2>Chương trình khuyến mãi lớn</h2><p>Giảm giá đến 5 triệu đồng cho các dòng xe tay ga. Tặng kèm phụ kiện chính hãng trị giá 2 triệu đồng.</p>', 1),
-    (N'Hướng dẫn bảo dưỡng xe định kỳ', N'<h2>Bảo dưỡng xe Yamaha đúng cách</h2><p>Hướng dẫn chi tiết cách bảo dưỡng xe Yamaha để xe luôn hoạt động tốt nhất.</p>', 0);
-    PRINT N'✅ Tin tức mẫu đã được tạo';
-END
-GO
-
--- =============================================
--- 6. Thông báo hoàn thành
--- =============================================
-
-PRINT N'';
-PRINT N'========================================';
-PRINT N'✅ DATABASE YAMAHADB ĐÃ SẴN SÀNG!';
-PRINT N'========================================';
-PRINT N'';
-PRINT N'📊 Các bảng đã tạo:';
-PRINT N'  • NguoiDung (Quản lý tài khoản)';
-PRINT N'  • DanhMuc (Danh mục sản phẩm)';
-PRINT N'  • SanPham (Sản phẩm)';
-PRINT N'  • SanPham_HinhAnh (Nhiều ảnh/sản phẩm)';
-PRINT N'  • Danhmuc_Sanpham (Liên kết nhiều-nhiều)';
-PRINT N'  • GioHang (Giỏ hàng)';
-PRINT N'  • ChiTietGioHang (Chi tiết giỏ hàng)';
-PRINT N'  • DonHang (Đơn hàng)';
-PRINT N'  • ChiTietDonHang (Chi tiết đơn hàng)';
-PRINT N'  • TinTuc (Tin tức & khuyến mãi)';
-PRINT N'  • Banner (Banner quảng cáo)';
-PRINT N'';
-PRINT N'🔐 Tài khoản mặc định:';
-PRINT N'  Admin:';
-PRINT N'    Username: admin';
-PRINT N'    Password: admin123';
-PRINT N'  User:';
-PRINT N'    Username: user';
-PRINT N'    Password: user123';
-PRINT N'';
-PRINT N'✨ Tính năng:';
-PRINT N'  • Quản lý sản phẩm với nhiều ảnh';
-PRINT N'  • Danh mục nhiều-nhiều';
-PRINT N'  • Giỏ hàng & đơn hàng';
-PRINT N'  • Tin tức với HTML editor';
-PRINT N'  • Banner quảng cáo đa vị trí';
-PRINT N'  • Đánh dấu nổi bật';
-PRINT N'  • Upload ảnh';
-PRINT N'';
-PRINT N'🚀 Bước tiếp theo:';
-PRINT N'  1. Chạy backend: python app.py';
-PRINT N'  2. Chạy frontend: cd yamaha_fe && npm run dev';
-PRINT N'  3. Truy cập: http://localhost:3000';
-PRINT N'========================================';
 GO
