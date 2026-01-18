@@ -10,39 +10,52 @@ class NguoiDungRepository:
     
     def dang_ky(self, ten_dang_nhap, mat_khau, email=None, ho_ten=None, sdt=None, vai_tro="khach_hang"):
         """Đăng ký người dùng mới."""
+        print(f"DEBUG REPO - Starting registration for: {ten_dang_nhap}")
+        
         db = get_db()
-        if db is None: return None
+        if db is None: 
+            print("DEBUG REPO - Database connection failed")
+            return None
         
         try:
             cursor = db.cursor()
+            print("DEBUG REPO - Database cursor created")
             
             # Kiểm tra tên đăng nhập đã tồn tại chưa
             cursor.execute("SELECT id FROM NguoiDung WHERE ten_dang_nhap = ?", (ten_dang_nhap,))
-            if cursor.fetchone():
+            existing_user = cursor.fetchone()
+            if existing_user:
+                print(f"DEBUG REPO - Username already exists: {ten_dang_nhap}")
                 return {"error": "Tên đăng nhập đã tồn tại"}
             
             # Kiểm tra email đã tồn tại chưa
             if email:
                 cursor.execute("SELECT id FROM NguoiDung WHERE email = ?", (email,))
-                if cursor.fetchone():
+                existing_email = cursor.fetchone()
+                if existing_email:
+                    print(f"DEBUG REPO - Email already exists: {email}")
                     return {"error": "Email đã được sử dụng"}
             
             # Mã hóa mật khẩu
             mat_khau_ma_hoa = self.ma_hoa_mat_khau(mat_khau)
+            print("DEBUG REPO - Password hashed")
             
-            # Thêm người dùng mới
+            # Thêm người dùng mới - không dùng OUTPUT vì có thể có trigger
+            print(f"DEBUG REPO - Inserting user: {ten_dang_nhap}, {email}, {ho_ten}, {sdt}, {vai_tro}")
             cursor.execute("""
                 INSERT INTO NguoiDung (ten_dang_nhap, mat_khau, email, ho_ten, sdt, vai_tro)
-                OUTPUT INSERTED.id
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (ten_dang_nhap, mat_khau_ma_hoa, email, ho_ten, sdt, vai_tro))
             
+            # Lấy ID vừa được tạo
+            cursor.execute("SELECT @@IDENTITY")
             new_id = cursor.fetchone()[0]
             db.commit()
+            print(f"DEBUG REPO - User created successfully with ID: {new_id}")
             return {"id": new_id, "message": "Đăng ký thành công"}
         except pyodbc.Error as e:
             db.rollback()
-            print(f"Lỗi khi đăng ký: {e}")
+            print(f"DEBUG REPO - Database error: {e}")
             return None
         finally:
             cursor.close()

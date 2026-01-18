@@ -279,36 +279,3 @@ GO
 
 PRINT N'✅ Trigger TR_SanPham_UpdateAn đã được tạo';
 GO
-
--- =============================================
--- 5. Thêm dữ liệu mẫu
--- =============================================
-
--- Thêm Admin mặc định
-IF NOT EXISTS (SELECT * FROM NguoiDung WHERE ten_dang_nhap = 'admin')
-BEGIN
-    INSERT INTO NguoiDung (ten_dang_nhap, mat_khau, email, ho_ten, vai_tro) 
-    VALUES ('admin', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'admin@yamaha.vn', N'Quản trị viên', 'admin');
-    PRINT N'✅ Tài khoản admin đã được tạo';
-END
-
--- Thêm User mẫu
-IF NOT EXISTS (SELECT * FROM NguoiDung WHERE ten_dang_nhap = 'user')
-BEGIN
-    INSERT INTO NguoiDung (ten_dang_nhap, mat_khau, email, ho_ten, vai_tro) 
-    VALUES ('user', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'user@example.com', N'Nguyễn Văn A', 'khach_hang');
-    PRINT N'✅ Tài khoản user mẫu đã được tạo';
-END
-GO
-
--- Thêm danh mục mẫu
-IF NOT EXISTS (SELECT * FROM DanhMuc WHERE ten_danh_muc = N'Xe côn tay')
-BEGIN
-    INSERT INTO DanhMuc (ten_danh_muc) VALUES 
-    (N'Xe côn tay'),
-    (N'Xe tay ga'),
-    (N'Xe số'),
-    (N'Phụ kiện');
-    PRINT N'✅ Danh mục mẫu đã được tạo';
-END
-GO

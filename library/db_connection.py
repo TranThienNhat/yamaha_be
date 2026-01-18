@@ -6,7 +6,7 @@ import os
 # Đọc cấu hình từ biến môi trường
 SERVER = os.environ.get('DB_SERVER', 'localhost')
 DATABASE = os.environ.get('DB_DATABASE', 'YamahaShop')
-DRIVER = '{ODBC Driver 17 for SQL Server}' # Đảm bảo đã cài driver này
+DRIVER = '{ODBC Driver 18 for SQL Server}' # Đảm bảo đã cài driver này
 
 # Thêm timeout settings để tránh lỗi timeout
 CONNECTION_STRING = (
@@ -14,8 +14,9 @@ CONNECTION_STRING = (
     f'SERVER={SERVER};'
     f'DATABASE={DATABASE};'
     f'Trusted_Connection=yes;'
+    f'Encrypt=yes;'
+    f'TrustServerCertificate=yes;'
     f'Connection Timeout=30;'
-    f'Command Timeout=30;'
 )
 # --- Quản lý Kết nối ---
 
@@ -23,7 +24,9 @@ def get_db():
     """Tạo hoặc trả về kết nối DB đã tồn tại trong ngữ cảnh request (g)."""
     if 'db' not in g:
         try:
+            print(f"DEBUG DB - Attempting to connect with: {CONNECTION_STRING}")
             g.db = pyodbc.connect(CONNECTION_STRING)
+            print("DEBUG DB - Connection successful")
         except pyodbc.Error as ex:
             # Xử lý lỗi kết nối
             print(f"LỖI KẾT NỐI DB: {ex}")

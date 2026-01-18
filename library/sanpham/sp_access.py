@@ -87,13 +87,16 @@ class ProductRepository:
         try:
             cursor = db.cursor()
             
-            #Thêm sản phẩm mới
+            # Thêm sản phẩm mới - không dùng OUTPUT vì có trigger
             cursor.execute(
                 """
                 INSERT INTO SanPham (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong) 
-                OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong))
+            
+            # Lấy ID vừa được tạo
+            cursor.execute("SELECT @@IDENTITY")
             ma_san_pham = cursor.fetchone()[0]
             print(f"DEBUG: Created product with ID: {ma_san_pham}")
             

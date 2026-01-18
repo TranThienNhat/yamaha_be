@@ -25,13 +25,14 @@ class GioHangRepository:
             else:
                 ma_gio_hang = row[0]
             
-            # Lấy chi tiết giỏ hàng
+            # Lấy chi tiết giỏ hàng với thông tin tồn kho
             cursor.execute("""
                 SELECT ct.id, ct.ma_san_pham, sp.ten_san_pham, sp.gia, 
-                       ct.so_luong, (sp.gia * ct.so_luong) as thanh_tien
+                       ct.so_luong, (sp.gia * ct.so_luong) as thanh_tien,
+                       sp.so_luong as so_luong_ton, sp.an
                 FROM ChiTietGioHang ct
                 JOIN SanPham sp ON ct.ma_san_pham = sp.id
-                WHERE ct.ma_gio_hang = ?
+                WHERE ct.ma_gio_hang = ? AND sp.da_xoa = 0
             """, (ma_gio_hang,))
             
             ket_qua = cursor.fetchall()

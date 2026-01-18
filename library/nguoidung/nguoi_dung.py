@@ -8,27 +8,44 @@ nd_repo = NguoiDungRepository()
 @nguoi_dung.route("/nguoidung/dangky", methods=["POST"])
 def dang_ky():
     """Đăng ký người dùng mới."""
-    data = request.get_json()
-    
-    ten_dang_nhap = data.get("ten_dang_nhap")
-    mat_khau = data.get("mat_khau")
-    email = data.get("email")
-    ho_ten = data.get("ho_ten")
-    sdt = data.get("sdt")
-    vai_tro = data.get("vai_tro", "khach_hang")
-    
-    if not ten_dang_nhap or not mat_khau:
-        return jsonify({"error": "Thiếu tên đăng nhập hoặc mật khẩu"}), 400
-    
-    ket_qua = nd_repo.dang_ky(ten_dang_nhap, mat_khau, email, ho_ten, sdt, vai_tro)
-    
-    if ket_qua is None:
-        return jsonify({"error": "Không thể đăng ký"}), 500
-    
-    if "error" in ket_qua:
-        return jsonify(ket_qua), 400
-    
-    return jsonify(ket_qua), 201
+    try:
+        data = request.get_json()
+        print(f"DEBUG - Received data: {data}")
+        
+        if not data:
+            print("DEBUG - No JSON data received")
+            return jsonify({"error": "Không có dữ liệu JSON"}), 400
+        
+        ten_dang_nhap = data.get("ten_dang_nhap")
+        mat_khau = data.get("mat_khau")
+        email = data.get("email")
+        ho_ten = data.get("ho_ten")
+        sdt = data.get("sdt")
+        vai_tro = data.get("vai_tro", "khach_hang")
+        
+        print(f"DEBUG - Parsed data: ten_dang_nhap={ten_dang_nhap}, mat_khau={'*' * len(mat_khau) if mat_khau else None}, email={email}, ho_ten={ho_ten}, sdt={sdt}")
+        
+        if not ten_dang_nhap or not mat_khau:
+            print("DEBUG - Missing username or password")
+            return jsonify({"error": "Thiếu tên đăng nhập hoặc mật khẩu"}), 400
+        
+        ket_qua = nd_repo.dang_ky(ten_dang_nhap, mat_khau, email, ho_ten, sdt, vai_tro)
+        print(f"DEBUG - Repository result: {ket_qua}")
+        
+        if ket_qua is None:
+            print("DEBUG - Repository returned None")
+            return jsonify({"error": "Không thể đăng ký"}), 500
+        
+        if "error" in ket_qua:
+            print(f"DEBUG - Repository returned error: {ket_qua}")
+            return jsonify(ket_qua), 400
+        
+        print("DEBUG - Registration successful")
+        return jsonify(ket_qua), 201
+        
+    except Exception as e:
+        print(f"DEBUG - Exception in registration: {e}")
+        return jsonify({"error": f"Lỗi server: {str(e)}"}), 500
 
 # Đăng nhập
 @nguoi_dung.route("/nguoidung/dangnhap", methods=["POST"])
