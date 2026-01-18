@@ -58,12 +58,22 @@ class GioHangRepository:
             cursor.close()
     
     def them_san_pham_vao_gio(self, ma_nguoi_dung, ma_san_pham, so_luong=1):
-        """Thêm sản phẩm vào giỏ hàng."""
+        """Thêm sản phẩm vào giỏ hàng với kiểm tra tồn kho."""
         db = get_db()
         if db is None: return False
         
         try:
             cursor = db.cursor()
+            
+            # Kiểm tra tồn kho trước khi thêm
+            cursor.execute("SELECT so_luong, ten_san_pham FROM SanPham WHERE id = ? AND da_xoa = 0", (ma_san_pham,))
+            san_pham = cursor.fetchone()
+            
+            if not san_pham:
+                raise Exception("Sản phẩm không tồn tại")
+            
+            so_luong_ton, ten_san_pham = san_pham
+            
             # Lấy hoặc tạo giỏ hàng
             cursor.execute("SELECT id FROM GioHang WHERE ma_nguoi_dung = ?", (ma_nguoi_dung,))
             row = cursor.fetchone()
@@ -87,13 +97,21 @@ class GioHangRepository:
             
             if chi_tiet:
                 # Cập nhật số lượng nếu đã có
-                so_luong_moi = chi_tiet[1] + so_luong
+                so_luong_hien_tai = chi_tiet[1]
+                so_luong_moi = so_luong_hien_tai + so_luong
+                
+                if so_luong_moi > so_luong_ton:
+                    raise Exception(f"Sản phẩm '{ten_san_pham}' không đủ số lượng. Còn lại: {so_luong_ton}, trong giỏ: {so_luong_hien_tai}")
+                
                 cursor.execute("""
                     UPDATE ChiTietGioHang SET so_luong = ? 
                     WHERE id = ?
                 """, (so_luong_moi, chi_tiet[0]))
             else:
                 # Thêm mới nếu chưa có
+                if so_luong > so_luong_ton:
+                    raise Exception(f"Sản phẩm '{ten_san_pham}' không đủ số lượng. Còn lại: {so_luong_ton}")
+                
                 cursor.execute("""
                     INSERT INTO ChiTietGioHang (ma_gio_hang, ma_san_pham, so_luong)
                     VALUES (?, ?, ?)
@@ -101,10 +119,10 @@ class GioHangRepository:
             
             db.commit()
             return True
-        except pyodbc.Error as e:
+        except Exception as e:
             db.rollback()
             print(f"Lỗi khi thêm sản phẩm vào giỏ: {e}")
-            return False
+            raise e
         finally:
             cursor.close()
     

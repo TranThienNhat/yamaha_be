@@ -27,10 +27,13 @@ def them_san_pham(ma_nguoi_dung):
     if not ma_san_pham:
         return jsonify({"error": "Thiếu mã sản phẩm"}), 400
     
-    if gh_repo.them_san_pham_vao_gio(ma_nguoi_dung, ma_san_pham, so_luong):
-        return jsonify({"message": "Thêm sản phẩm vào giỏ hàng thành công"}), 201
-    else:
-        return jsonify({"error": "Không thể thêm sản phẩm vào giỏ hàng"}), 500
+    try:
+        if gh_repo.them_san_pham_vao_gio(ma_nguoi_dung, ma_san_pham, so_luong):
+            return jsonify({"message": "Thêm sản phẩm vào giỏ hàng thành công"}), 201
+        else:
+            return jsonify({"error": "Không thể thêm sản phẩm vào giỏ hàng"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 # Cập nhật số lượng sản phẩm trong giỏ
 @gio_hang.route("/giohang/chitiet/<int:ma_chi_tiet>", methods=["PUT"])

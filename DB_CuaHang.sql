@@ -65,6 +65,8 @@ BEGIN
         hinh_anh VARCHAR(255),
         noi_bat BIT DEFAULT 0,
         da_xoa BIT DEFAULT 0,
+        so_luong INT NOT NULL DEFAULT 0,
+        an BIT DEFAULT 0,
         ngay_tao DATETIME DEFAULT GETDATE()
     );
     PRINT N'✅ Bảng SanPham đã được tạo';
@@ -77,6 +79,21 @@ BEGIN
         ALTER TABLE SanPham ADD da_xoa BIT DEFAULT 0;
         UPDATE SanPham SET da_xoa = 0 WHERE da_xoa IS NULL;
         PRINT N'✅ Đã thêm cột da_xoa vào bảng SanPham';
+    END
+    
+    -- Thêm cột so_luong nếu chưa có
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SanPham') AND name = 'so_luong')
+    BEGIN
+        ALTER TABLE SanPham ADD so_luong INT NOT NULL DEFAULT 0;
+        PRINT N'✅ Đã thêm cột so_luong vào bảng SanPham';
+    END
+    
+    -- Thêm cột an nếu chưa có
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('SanPham') AND name = 'an')
+    BEGIN
+        ALTER TABLE SanPham ADD an BIT DEFAULT 0;
+        UPDATE SanPham SET an = 0 WHERE an IS NULL;
+        PRINT N'✅ Đã thêm cột an vào bảng SanPham';
     END
 END
 GO
@@ -231,6 +248,36 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_DonHang_NgayDat')
     CREATE INDEX IX_DonHang_NgayDat ON DonHang(ngay_dat DESC);
 
 PRINT N'✅ Indexes đã được tạo';
+GO
+
+-- =============================================
+-- 6. Tạo Trigger để tự động cập nhật trường 'an' khi số lượng thay đổi
+-- =============================================
+
+-- Trigger cho INSERT và UPDATE
+IF EXISTS (SELECT * FROM sys.triggers WHERE name = 'TR_SanPham_UpdateAn')
+    DROP TRIGGER TR_SanPham_UpdateAn;
+GO
+
+CREATE TRIGGER TR_SanPham_UpdateAn
+ON SanPham
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Cập nhật trường 'an' dựa trên số lượng
+    UPDATE sp
+    SET an = CASE 
+        WHEN i.so_luong <= 0 THEN 1 
+        ELSE 0 
+    END
+    FROM SanPham sp
+    INNER JOIN inserted i ON sp.id = i.id;
+END
+GO
+
+PRINT N'✅ Trigger TR_SanPham_UpdateAn đã được tạo';
 GO
 
 -- =============================================

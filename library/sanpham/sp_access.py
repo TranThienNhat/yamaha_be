@@ -4,12 +4,38 @@ import pyodbc
 class ProductRepository:
     
     def lay_tat_ca(self):
-        """Lấy tất cả sản phẩm (chỉ lấy sản phẩm chưa xóa)."""
+        """Lấy tất cả sản phẩm (chỉ lấy sản phẩm chưa xóa và không bị ẩn)."""
         db = get_db()
         if db is None: return None # Trả về None nếu không kết nối được
         
         try:
-            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat FROM SanPham WHERE da_xoa = 0 ORDER BY id DESC"
+            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong, an FROM SanPham WHERE da_xoa = 0 AND an = 0 ORDER BY id DESC"
+            cursor = db.cursor()
+            cursor.execute(lenh)
+        
+            ket_qua = cursor.fetchall()
+            columns = [col[0] for col in cursor.description]
+            ds_sp = [dict(zip(columns, row)) for row in ket_qua]
+            
+            # Thêm URL ảnh đầy đủ
+            for sp in ds_sp:
+                if sp.get('hinh_anh'):
+                    sp['hinh_anh_url'] = f"http://localhost:5000/uploads/{sp['hinh_anh']}"
+            
+            return ds_sp
+        except pyodbc.Error as e:
+            print(f"SELECT error: {e}")
+            return None
+        finally:
+            cursor.close()
+
+    def lay_tat_ca_admin(self):
+        """Lấy tất cả sản phẩm cho admin (bao gồm cả sản phẩm bị ẩn)."""
+        db = get_db()
+        if db is None: return None
+        
+        try:
+            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong, an, da_xoa FROM SanPham WHERE da_xoa = 0 ORDER BY id DESC"
             cursor = db.cursor()
             cursor.execute(lenh)
         
@@ -30,13 +56,13 @@ class ProductRepository:
             cursor.close()
 
     def lay_theo_id(self, ma_san_pham):
-        """Lấy sản phẩm theo ID (chỉ lấy sản phẩm chưa xóa)."""
+        """Lấy sản phẩm theo ID (chỉ lấy sản phẩm chưa xóa và không bị ẩn)."""
         db = get_db()
         if db is None: return None
 
         try:
             # Dùng placeholder (?) để tránh SQL Injection
-            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh FROM SanPham WHERE id = ? AND da_xoa = 0"
+            lenh = "SELECT id, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, so_luong, an FROM SanPham WHERE id = ? AND da_xoa = 0 AND an = 0"
             cursor = db.cursor()
             cursor.execute(lenh, (ma_san_pham,)) 
         
@@ -53,7 +79,7 @@ class ProductRepository:
             cursor.close()
 
 
-    def them_san_pham(self, ten_san_pham, gia, mo_ta=None, thong_so_ky_thuat=None, hinh_anh=None, noi_bat=False, danh_muc_ids=None, hinh_anh_list=None):
+    def them_san_pham(self, ten_san_pham, gia, mo_ta=None, thong_so_ky_thuat=None, hinh_anh=None, noi_bat=False, so_luong=0, danh_muc_ids=None, hinh_anh_list=None):
         """Thêm sản phẩm mới và trả về ID được tạo."""
         db = get_db()
         if db is None: return None
@@ -64,10 +90,10 @@ class ProductRepository:
             #Thêm sản phẩm mới
             cursor.execute(
                 """
-                INSERT INTO SanPham (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat) 
-                OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO SanPham (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong) 
+                OUTPUT INSERTED.id VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat))
+                (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong))
             ma_san_pham = cursor.fetchone()[0]
             print(f"DEBUG: Created product with ID: {ma_san_pham}")
             
@@ -101,7 +127,7 @@ class ProductRepository:
         finally:
             cursor.close()
 
-    def sua_san_pham(self, ma_san_pham, ten_san_pham, gia, mo_ta=None, thong_so_ky_thuat=None, hinh_anh=None, noi_bat=False, danh_muc_ids=None, hinh_anh_list=None):
+    def sua_san_pham(self, ma_san_pham, ten_san_pham, gia, mo_ta=None, thong_so_ky_thuat=None, hinh_anh=None, noi_bat=False, so_luong=None, danh_muc_ids=None, hinh_anh_list=None):
         """Cập nhật thông tin sản phẩm."""
         db = get_db()
         if db is None:
@@ -111,9 +137,15 @@ class ProductRepository:
             cursor = db.cursor()
             
             # Cập nhật thông tin sản phẩm
-            if hinh_anh:
+            if hinh_anh and so_luong is not None:
+                lenh = "UPDATE SanPham SET ten_san_pham = ?, gia = ?, mo_ta = ?, thong_so_ky_thuat = ?, hinh_anh = ?, noi_bat = ?, so_luong = ? WHERE id = ?"
+                cursor.execute(lenh, (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong, ma_san_pham))
+            elif hinh_anh:
                 lenh = "UPDATE SanPham SET ten_san_pham = ?, gia = ?, mo_ta = ?, thong_so_ky_thuat = ?, hinh_anh = ?, noi_bat = ? WHERE id = ?"
                 cursor.execute(lenh, (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, ma_san_pham))
+            elif so_luong is not None:
+                lenh = "UPDATE SanPham SET ten_san_pham = ?, gia = ?, mo_ta = ?, thong_so_ky_thuat = ?, noi_bat = ?, so_luong = ? WHERE id = ?"
+                cursor.execute(lenh, (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, noi_bat, so_luong, ma_san_pham))
             else:
                 lenh = "UPDATE SanPham SET ten_san_pham = ?, gia = ?, mo_ta = ?, thong_so_ky_thuat = ?, noi_bat = ? WHERE id = ?"
                 cursor.execute(lenh, (ten_san_pham, gia, mo_ta, thong_so_ky_thuat, noi_bat, ma_san_pham))
@@ -210,16 +242,16 @@ class ProductRepository:
             cursor.close()
     
     def lay_noi_bat(self, limit=8):
-        """Lấy sản phẩm nổi bật (chỉ lấy sản phẩm chưa xóa)."""
+        """Lấy sản phẩm nổi bật (chỉ lấy sản phẩm chưa xóa và không bị ẩn)."""
         db = get_db()
         if db is None: return []
         
         try:
             cursor = db.cursor()
             cursor.execute("""
-                SELECT TOP (?) id, ten_san_pham, gia, mo_ta, hinh_anh 
+                SELECT TOP (?) id, ten_san_pham, gia, mo_ta, hinh_anh, so_luong
                 FROM SanPham 
-                WHERE noi_bat = 1 AND da_xoa = 0
+                WHERE noi_bat = 1 AND da_xoa = 0 AND an = 0
                 ORDER BY id DESC
             """, (limit,))
             ket_qua = cursor.fetchall()
@@ -261,5 +293,88 @@ class ProductRepository:
         except pyodbc.Error as e:
             print(f"SELECT error: {e}")
             return []
+        finally:
+            cursor.close()
+    def cap_nhat_so_luong(self, ma_san_pham, so_luong_moi):
+        """Cập nhật số lượng sản phẩm."""
+        db = get_db()
+        if db is None: return False
+        
+        try:
+            cursor = db.cursor()
+            cursor.execute("UPDATE SanPham SET so_luong = ? WHERE id = ? AND da_xoa = 0", (so_luong_moi, ma_san_pham))
+            db.commit()
+            return cursor.rowcount > 0
+        except pyodbc.Error as e:
+            db.rollback()
+            print(f"Update quantity error: {e}")
+            return False
+        finally:
+            cursor.close()
+
+    def giam_so_luong(self, ma_san_pham, so_luong_giam):
+        """Giảm số lượng sản phẩm (khi mua hàng)."""
+        db = get_db()
+        if db is None: return False
+        
+        try:
+            cursor = db.cursor()
+            # Kiểm tra số lượng hiện tại
+            cursor.execute("SELECT so_luong FROM SanPham WHERE id = ? AND da_xoa = 0", (ma_san_pham,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return False
+                
+            so_luong_hien_tai = row[0]
+            if so_luong_hien_tai < so_luong_giam:
+                return False  # Không đủ số lượng
+            
+            # Giảm số lượng
+            so_luong_moi = so_luong_hien_tai - so_luong_giam
+            cursor.execute("UPDATE SanPham SET so_luong = ? WHERE id = ?", (so_luong_moi, ma_san_pham))
+            db.commit()
+            return cursor.rowcount > 0
+        except pyodbc.Error as e:
+            db.rollback()
+            print(f"Decrease quantity error: {e}")
+            return False
+        finally:
+            cursor.close()
+
+    def tang_so_luong(self, ma_san_pham, so_luong_tang):
+        """Tăng số lượng sản phẩm (khi hủy đơn hàng)."""
+        db = get_db()
+        if db is None: return False
+        
+        try:
+            cursor = db.cursor()
+            cursor.execute("UPDATE SanPham SET so_luong = so_luong + ? WHERE id = ? AND da_xoa = 0", (so_luong_tang, ma_san_pham))
+            db.commit()
+            return cursor.rowcount > 0
+        except pyodbc.Error as e:
+            db.rollback()
+            print(f"Increase quantity error: {e}")
+            return False
+        finally:
+            cursor.close()
+
+    def kiem_tra_so_luong(self, ma_san_pham):
+        """Kiểm tra số lượng sản phẩm."""
+        db = get_db()
+        if db is None: return None
+        
+        try:
+            cursor = db.cursor()
+            cursor.execute("SELECT so_luong, an FROM SanPham WHERE id = ? AND da_xoa = 0", (ma_san_pham,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+                
+            return {"so_luong": row[0], "an": row[1]}
+        except pyodbc.Error as e:
+            print(f"Check quantity error: {e}")
+            return None
         finally:
             cursor.close()

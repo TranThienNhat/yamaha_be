@@ -23,6 +23,17 @@ def lay_tat_ca():
         return jsonify({"error": "Không thể kết nối hoặc truy vấn cơ sở dữ liệu."}), 500
         
     return jsonify(ds_sp), 200
+
+#-------------Lấy tất cả sản phẩm cho admin----------------------
+@san_pham.route('/admin/sanpham', methods=['GET'])
+def lay_tat_ca_admin():
+    """Endpoint: Lấy danh sách tất cả sản phẩm cho admin (bao gồm sản phẩm bị ẩn)."""
+    ds_sp = sp_repo.lay_tat_ca_admin()
+    
+    if ds_sp is None:
+        return jsonify({"error": "Không thể kết nối hoặc truy vấn cơ sở dữ liệu."}), 500
+        
+    return jsonify(ds_sp), 200
 #--------------Lấy sản phẩm theo id------------------
 @san_pham.route('/sanpham/<int:id>', methods=['GET'])
 def lay_theo_id(id):
@@ -51,6 +62,7 @@ def them_san_pham():
     mo_ta = request.form.get('mo_ta')
     thong_so_ky_thuat = request.form.get('thong_so_ky_thuat')
     noi_bat = request.form.get('noi_bat', '0') == '1'
+    so_luong = request.form.get('so_luong', '0')
     danh_muc_ids_str = request.form.get('danh_muc_ids')
 
     files = request.files.getlist('hinh_anh')  # Lấy nhiều file
@@ -60,8 +72,9 @@ def them_san_pham():
         return jsonify({"error": "Thiếu dữ liệu sản phẩm"}), 400    
     try:
         gia = float(gia)
+        so_luong = int(so_luong)
     except (TypeError, ValueError):
-        return jsonify({"error": "Giá trị 'gia' không hợp lệ"}), 400
+        return jsonify({"error": "Giá trị 'gia' hoặc 'so_luong' không hợp lệ"}), 400
     
     # Parse danh sách ID danh mục
     danh_muc_ids = []
@@ -97,7 +110,7 @@ def them_san_pham():
     hinh_anh = hinh_anh_list[0] if hinh_anh_list else None
     
     # Gọi repo để lưu DB
-    new_id = sp_repo.them_san_pham(ten, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, danh_muc_ids, hinh_anh_list)
+    new_id = sp_repo.them_san_pham(ten, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong, danh_muc_ids, hinh_anh_list)
     
     if new_id:
         return jsonify({"message": "Tạo sản phẩm thành công", "id": new_id}), 201
@@ -112,6 +125,7 @@ def sua_san_pham(ma_san_pham):
         mo_ta = request.form.get("mo_ta")
         thong_so_ky_thuat = request.form.get("thong_so_ky_thuat")
         noi_bat = request.form.get("noi_bat", "0") == "1"
+        so_luong = request.form.get("so_luong")
         danh_muc_ids_str = request.form.get("danh_muc_ids")
         
         # Parse danh sách ID danh mục
@@ -141,7 +155,7 @@ def sua_san_pham(ma_san_pham):
         
         hinh_anh = hinh_anh_list[0] if hinh_anh_list else None
 
-        ket_qua = sp_repo.sua_san_pham(ma_san_pham, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, danh_muc_ids, hinh_anh_list)
+        ket_qua = sp_repo.sua_san_pham(ma_san_pham, ten_san_pham, gia, mo_ta, thong_so_ky_thuat, hinh_anh, noi_bat, so_luong, danh_muc_ids, hinh_anh_list)
         if ket_qua:
             return jsonify({"message": "Cập nhật thành công"})
         else:
@@ -186,6 +200,69 @@ def lay_hinh_anh_san_pham(ma_san_pham):
     try:
         hinh_anhs = sp_repo.lay_hinh_anh(ma_san_pham)
         return jsonify(hinh_anhs), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Cập nhật số lượng sản phẩm
+@san_pham.route("/sanpham/<int:ma_san_pham>/soluong", methods=["PUT"])
+def cap_nhat_so_luong(ma_san_pham):
+    try:
+        data = request.get_json()
+        so_luong_moi = data.get('so_luong')
+        
+        if so_luong_moi is None:
+            return jsonify({"error": "Thiếu thông tin số lượng"}), 400
+            
+        try:
+            so_luong_moi = int(so_luong_moi)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Số lượng không hợp lệ"}), 400
+            
+        ket_qua = sp_repo.cap_nhat_so_luong(ma_san_pham, so_luong_moi)
+        if ket_qua:
+            return jsonify({"message": "Cập nhật số lượng thành công"})
+        else:
+            return jsonify({"message": "Không tìm thấy sản phẩm"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Giảm số lượng sản phẩm (khi mua hàng)
+@san_pham.route("/sanpham/<int:ma_san_pham>/giam-soluong", methods=["PUT"])
+def giam_so_luong(ma_san_pham):
+    try:
+        data = request.get_json()
+        so_luong_giam = data.get('so_luong', 1)
+        
+        try:
+            so_luong_giam = int(so_luong_giam)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Số lượng không hợp lệ"}), 400
+            
+        ket_qua = sp_repo.giam_so_luong(ma_san_pham, so_luong_giam)
+        if ket_qua:
+            return jsonify({"message": "Giảm số lượng thành công"})
+        else:
+            return jsonify({"message": "Không đủ số lượng hoặc sản phẩm không tồn tại"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Tăng số lượng sản phẩm (khi hủy đơn hàng)
+@san_pham.route("/sanpham/<int:ma_san_pham>/tang-soluong", methods=["PUT"])
+def tang_so_luong(ma_san_pham):
+    try:
+        data = request.get_json()
+        so_luong_tang = data.get('so_luong', 1)
+        
+        try:
+            so_luong_tang = int(so_luong_tang)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Số lượng không hợp lệ"}), 400
+            
+        ket_qua = sp_repo.tang_so_luong(ma_san_pham, so_luong_tang)
+        if ket_qua:
+            return jsonify({"message": "Tăng số lượng thành công"})
+        else:
+            return jsonify({"message": "Không tìm thấy sản phẩm"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

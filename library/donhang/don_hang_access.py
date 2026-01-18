@@ -1,7 +1,10 @@
 from library.db_connection import get_db
+from library.sanpham.sp_access import ProductRepository
 import pyodbc
 
 class DonHangRepository:
+    def __init__(self):
+        self.sp_repo = ProductRepository()
     
     def lay_tat_ca(self):
         """Lấy tất cả đơn hàng."""
@@ -103,6 +106,19 @@ class DonHangRepository:
         try:
             cursor = db.cursor()
             
+            # Kiểm tra số lượng tồn kho trước khi tạo đơn hàng
+            for item in chi_tiet_san_pham:
+                cursor.execute("SELECT so_luong FROM SanPham WHERE id = ? AND da_xoa = 0", (item["ma_san_pham"],))
+                row = cursor.fetchone()
+                if not row:
+                    raise Exception(f"Sản phẩm ID {item['ma_san_pham']} không tồn tại")
+                
+                so_luong_ton = row[0]
+                if so_luong_ton < item["so_luong"]:
+                    cursor.execute("SELECT ten_san_pham FROM SanPham WHERE id = ?", (item["ma_san_pham"],))
+                    ten_sp = cursor.fetchone()[0]
+                    raise Exception(f"Sản phẩm '{ten_sp}' không đủ số lượng. Còn lại: {so_luong_ton}")
+            
             # Tính tổng giá
             tong_gia = 0
             for item in chi_tiet_san_pham:
@@ -121,7 +137,7 @@ class DonHangRepository:
             
             ma_don_hang = cursor.fetchone()[0]
             
-            # Thêm chi tiết đơn hàng
+            # Thêm chi tiết đơn hàng và giảm số lượng tồn kho
             for item in chi_tiet_san_pham:
                 cursor.execute("SELECT gia FROM SanPham WHERE id = ?", (item["ma_san_pham"],))
                 row = cursor.fetchone()
@@ -131,10 +147,15 @@ class DonHangRepository:
                         INSERT INTO ChiTietDonHang (ma_don_hang, ma_san_pham, so_luong, don_gia)
                         VALUES (?, ?, ?, ?)
                     """, (ma_don_hang, item["ma_san_pham"], item["so_luong"], don_gia))
+                    
+                    # Giảm số lượng tồn kho
+                    cursor.execute("""
+                        UPDATE SanPham SET so_luong = so_luong - ? WHERE id = ?
+                    """, (item["so_luong"], item["ma_san_pham"]))
             
             db.commit()
             return ma_don_hang
-        except pyodbc.Error as e:
+        except Exception as e:
             db.rollback()
             print(f"Lỗi khi tạo đơn hàng: {e}")
             return None
@@ -148,6 +169,24 @@ class DonHangRepository:
         
         try:
             cursor = db.cursor()
+            
+            # Nếu đơn hàng bị hủy, hoàn trả số lượng sản phẩm
+            if trang_thai.lower() in ['hủy', 'huy', 'cancelled', 'canceled']:
+                # Lấy chi tiết đơn hàng
+                cursor.execute("""
+                    SELECT ma_san_pham, so_luong 
+                    FROM ChiTietDonHang 
+                    WHERE ma_don_hang = ?
+                """, (ma_don_hang,))
+                
+                chi_tiet = cursor.fetchall()
+                
+                # Hoàn trả số lượng cho từng sản phẩm
+                for ma_san_pham, so_luong in chi_tiet:
+                    cursor.execute("""
+                        UPDATE SanPham SET so_luong = so_luong + ? WHERE id = ?
+                    """, (so_luong, ma_san_pham))
+            
             cursor.execute("""
                 UPDATE DonHang SET trang_thai = ? WHERE id = ?
             """, (trang_thai, ma_don_hang))
@@ -162,12 +201,29 @@ class DonHangRepository:
             cursor.close()
     
     def xoa_don_hang(self, ma_don_hang):
-        """Xóa đơn hàng."""
+        """Xóa đơn hàng và hoàn trả số lượng sản phẩm."""
         db = get_db()
         if db is None: return False
         
         try:
             cursor = db.cursor()
+            
+            # Lấy chi tiết đơn hàng trước khi xóa
+            cursor.execute("""
+                SELECT ma_san_pham, so_luong 
+                FROM ChiTietDonHang 
+                WHERE ma_don_hang = ?
+            """, (ma_don_hang,))
+            
+            chi_tiet = cursor.fetchall()
+            
+            # Hoàn trả số lượng cho từng sản phẩm
+            for ma_san_pham, so_luong in chi_tiet:
+                cursor.execute("""
+                    UPDATE SanPham SET so_luong = so_luong + ? WHERE id = ?
+                """, (so_luong, ma_san_pham))
+            
+            # Xóa đơn hàng (cascade sẽ xóa chi tiết đơn hàng)
             cursor.execute("DELETE FROM DonHang WHERE id = ?", (ma_don_hang,))
             db.commit()
             return cursor.rowcount > 0
